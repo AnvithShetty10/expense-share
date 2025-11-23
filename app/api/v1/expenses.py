@@ -1,8 +1,9 @@
 """Expense endpoints"""
+import json
 from typing import Optional
 from datetime import date
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -15,6 +16,7 @@ from app.schemas.expense import (
     PaginationMeta
 )
 from app.services.expense_service import ExpenseService
+from app.services.cache_service import CacheService
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.core.exceptions import (
@@ -31,15 +33,21 @@ router = APIRouter(prefix="/expenses", tags=["Expenses"])
 async def create_expense(
     expense_data: ExpenseCreate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
 ):
     """
     Create a new expense.
+
+    Supports idempotency via the `Idempotency-Key` header to prevent duplicate
+    expense creation. If the same key is used within 24 hours, the original
+    response will be returned.
 
     Args:
         expense_data: Expense creation data with participants
         current_user: Current authenticated user
         db: Database session
+        idempotency_key: Optional idempotency key for preventing duplicates
 
     Returns:
         Created expense with all details
@@ -48,13 +56,37 @@ async def create_expense(
         400: If validation fails (invalid amounts, participants, etc.)
         404: If any participant user ID doesn't exist
     """
+    # Check idempotency key in cache if provided
+    if idempotency_key:
+        cache_key = f"idempotency:expense:{idempotency_key}:{current_user.id}"
+        cached_response = await CacheService.get(cache_key)
+
+        if cached_response:
+            # Return cached response to prevent duplicate creation
+            cached_data = json.loads(cached_response)
+            return ExpenseResponse(**cached_data)
+
+    # Create new expense
     try:
         expense = await ExpenseService.create_expense(
             expense_data,
             current_user.id,
             db
         )
-        return ExpenseResponse.model_validate(expense)
+        response = ExpenseResponse.model_validate(expense)
+
+        # Cache response if idempotency key provided
+        if idempotency_key:
+            cache_key = f"idempotency:expense:{idempotency_key}:{current_user.id}"
+            # Convert response to dict for JSON serialization
+            response_dict = response.model_dump(mode='json')
+            await CacheService.set(
+                cache_key,
+                json.dumps(response_dict, default=str),
+                ttl=86400  # 24 hours
+            )
+
+        return response
     except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
