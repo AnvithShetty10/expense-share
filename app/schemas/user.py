@@ -4,7 +4,7 @@ from typing import Optional, List
 from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
-from app.schemas.expense import PaginationMeta
+from app.schemas.common import PaginationMeta
 
 
 class UserBase(BaseModel):

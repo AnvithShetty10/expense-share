@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from app.models.expense import SplitType
+from app.schemas.common import PaginationMeta
 from app.schemas.user import UserResponse
 
 
@@ -92,14 +93,6 @@ class ExpenseListItem(BaseModel):
     created_by: UserResponse
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class PaginationMeta(BaseModel):
-    """Pagination metadata"""
-    page: int
-    page_size: int
-    total_items: int
-    total_pages: int
 
 
 class ExpenseListResponse(BaseModel):
