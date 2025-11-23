@@ -1,1 +1,17 @@
 """Application constants"""
+
+# Split types
+SPLIT_TYPE_EQUAL = "EQUAL"
+SPLIT_TYPE_PERCENTAGE = "PERCENTAGE"
+SPLIT_TYPE_MANUAL = "MANUAL"
+
+# Currency
+DEFAULT_CURRENCY = "INR"
+
+# Pagination
+DEFAULT_PAGE_SIZE = 20
+MAX_PAGE_SIZE = 100
+
+# Cache
+CACHE_TTL_SECONDS = 3600  # 1 hour
+BALANCE_CACHE_KEY_PREFIX = "balance:"
