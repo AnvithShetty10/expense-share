@@ -1,0 +1,1 @@
+"""Expense participant model"""

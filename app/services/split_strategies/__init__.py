@@ -1,0 +1,1 @@
+"""Split calculation strategies"""
