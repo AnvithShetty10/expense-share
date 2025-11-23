@@ -138,6 +138,11 @@ class ExpenseService:
 
         await db.commit()
 
+        # Invalidate balance cache for all participants
+        from app.services.balance_service import BalanceService
+        participant_user_ids = [p.user_id for p in participants]
+        await BalanceService.invalidate_balances_for_users(participant_user_ids)
+
         # Return expense with participants loaded
         return await ExpenseRepository.get_with_participants(db, created_expense.id)
 
@@ -254,6 +259,10 @@ class ExpenseService:
         if expense.created_by_user_id != user_id:
             raise AuthorizationError("Only the expense creator can update it")
 
+        # Get old participants for cache invalidation
+        old_participants = await ParticipantRepository.get_by_expense(db, expense_id)
+        old_participant_user_ids = [p.user_id for p in old_participants]
+
         # Validate participants exist
         await ExpenseService.validate_participants_exist(db, expense_data.participants)
 
@@ -300,6 +309,12 @@ class ExpenseService:
 
         await db.commit()
 
+        # Invalidate balance cache for all old and new participants
+        from app.services.balance_service import BalanceService
+        new_participant_user_ids = [p.user_id for p in participants]
+        all_affected_user_ids = list(set(old_participant_user_ids + new_participant_user_ids))
+        await BalanceService.invalidate_balances_for_users(all_affected_user_ids)
+
         # Return updated expense with participants
         return await ExpenseRepository.get_with_participants(db, expense_id)
 
@@ -333,8 +348,16 @@ class ExpenseService:
         if expense.created_by_user_id != user_id:
             raise AuthorizationError("Only the expense creator can delete it")
 
+        # Get all participants for cache invalidation before deletion
+        participants = await ParticipantRepository.get_by_expense(db, expense_id)
+        participant_user_ids = [p.user_id for p in participants]
+
         # Delete expense (participants will be cascade deleted)
         await ExpenseRepository.delete(db, expense_id)
         await db.commit()
+
+        # Invalidate balance cache for all participants
+        from app.services.balance_service import BalanceService
+        await BalanceService.invalidate_balances_for_users(participant_user_ids)
 
         return True
