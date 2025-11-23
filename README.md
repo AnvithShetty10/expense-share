@@ -1,6 +1,6 @@
-# Expense Sharing Application - Backend API
+# Expense Share
 
-A backend API for an expense sharing application that allows users to split expenses among multiple people, track payments, and view outstanding balances.
+A backend API for an expense sharing application that allows users to split expenses among multiple people and view outstanding balances.
 
 ## Features
 
@@ -22,7 +22,7 @@ A backend API for an expense sharing application that allows users to split expe
 - **Testing**: pytest with async support
 - **Containerization**: Docker + Docker Compose
 
-## Quick Start with Docker (Recommended)
+## Quick Start
 
 ### Prerequisites
 - Docker
@@ -63,6 +63,14 @@ The application will:
 4. **Access the application**
 - API Base URL: http://localhost:8000
 - API Documentation (Swagger UI): http://localhost:8000/docs
+
+5. **How to Authorize in Swagger UI**
+- Open the Swagger UI at `/docs`.
+- Click the **Authorize** button.
+- Fill in your username and password.
+- Click **Authorize**.
+
+Swagger UI will automatically request a token and attach it to all protected API calls.
 
 ## Local Development Setup (Without Docker)
 
@@ -134,13 +142,13 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 The database is pre-seeded with 5 test users:
 
-| Email | Username | Password | Full Name |
-|-------|----------|----------|-----------|
-| user1@example.com | user1 | password123 | User One |
-| user2@example.com | user2 | password123 | User Two |
-| user3@example.com | user3 | password123 | User Three |
-| user4@example.com | user4 | password123 | User Four |
-| user5@example.com | user5 | password123 | User Five |
+| Email | Username | Password    | Full Name |
+|-------|----------|-------------|-----------|
+| user1@example.com | user1 | password111 | User One |
+| user2@example.com | user2 | password222 | User Two |
+| user3@example.com | user3 | password333 | User Three |
+| user4@example.com | user4 | password444 | User Four |
+| user5@example.com | user5 | password555 | User Five |
 
 ## API Documentation
 

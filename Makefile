@@ -36,12 +36,21 @@ help:
 	@echo "    make build && make up"
 	@echo ""
 
+# Detect docker compose command
+DOCKER_COMPOSE := $(shell \
+    if command -v docker-compose >/dev/null 2>&1; then \
+        echo "docker-compose"; \
+    else \
+        echo "docker compose"; \
+    fi \
+)
+
 # Docker commands
 build:
-	docker-compose build
+	$(DOCKER_COMPOSE) build
 
 up:
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
 	@echo ""
 	@echo "✓ Services started!"
 	@echo "  API:       http://localhost:8000"
@@ -52,53 +61,53 @@ up:
 	@echo "Run 'make logs' to view logs"
 
 down:
-	docker-compose down
+	$(DOCKER_COMPOSE) down
 
 restart:
-	docker-compose restart
+	$(DOCKER_COMPOSE) restart
 
 logs:
-	docker-compose logs -f
+	$(DOCKER_COMPOSE) logs -f
 
 logs-api:
-	docker-compose logs -f api
+	$(DOCKER_COMPOSE) logs -f api
 
 logs-db:
-	docker-compose logs -f postgres
+	$(DOCKER_COMPOSE) logs -f postgres
 
 # Shell commands
 shell:
-	docker-compose exec api /bin/bash
+	$(DOCKER_COMPOSE) exec api /bin/bash
 
 db-shell:
-	docker-compose exec postgres psql -U postgres -d expense_share
+	$(DOCKER_COMPOSE) exec postgres psql -U postgres -d expense_share
 
 redis-shell:
-	docker-compose exec redis redis-cli
+	$(DOCKER_COMPOSE) exec redis redis-cli
 
 # Database commands
 migrate:
-	docker-compose exec api alembic upgrade head
+	$(DOCKER_COMPOSE) exec api alembic upgrade head
 
 migrate-create:
 	@if [ -z "$(msg)" ]; then \
 		echo "Error: Please provide a migration message: make migrate-create msg='your message'"; \
 		exit 1; \
 	fi
-	docker-compose exec api alembic revision --autogenerate -m "$(msg)"
+	$(DOCKER_COMPOSE) exec api alembic revision --autogenerate -m "$(msg)"
 
 seed:
-	docker-compose exec api python scripts/seed_database.py
+	$(DOCKER_COMPOSE) exec api python scripts/seed_database.py
 
 db-reset:
 	@echo "WARNING: This will delete all data in the database!"
 	@read -p "Are you sure? (y/N) " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker-compose down -v; \
-		docker-compose up -d postgres redis; \
+		$(DOCKER_COMPOSE) down -v; \
+		$(DOCKER_COMPOSE) up -d postgres redis; \
 		sleep 5; \
-		docker-compose up -d api; \
+		$(DOCKER_COMPOSE) up -d api; \
 		sleep 5; \
 		make migrate; \
 		make seed; \
@@ -107,24 +116,24 @@ db-reset:
 
 # Development commands
 test:
-	docker-compose exec api pytest
+	$(DOCKER_COMPOSE) exec api pytest
 
 test-unit:
-	docker-compose exec api pytest tests/unit -v
+	$(DOCKER_COMPOSE) exec api pytest tests/unit -v
 
 test-integration:
-	docker-compose exec api pytest tests/integration -v
+	$(DOCKER_COMPOSE) exec api pytest tests/integration -v
 
 test-coverage:
-	docker-compose exec api pytest --cov=app --cov-report=html --cov-report=term
+	$(DOCKER_COMPOSE) exec api pytest --cov=app --cov-report=html --cov-report=term
 
 lint:
-	docker-compose exec api flake8 app tests
-	docker-compose exec api mypy app
+	$(DOCKER_COMPOSE) exec api flake8 app tests
+	$(DOCKER_COMPOSE) exec api mypy app
 
 format:
-	docker-compose exec api black app tests
-	docker-compose exec api isort app tests
+	$(DOCKER_COMPOSE) exec api black app tests
+	$(DOCKER_COMPOSE) exec api isort app tests
 
 # Cleanup
 clean:
@@ -133,5 +142,5 @@ clean:
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
-	docker-compose down -v
+	$(DOCKER_COMPOSE) down -v
 	@echo "Cleaned up cache files and Docker volumes"

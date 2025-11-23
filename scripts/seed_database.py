@@ -19,31 +19,31 @@ async def seed_users():
         {
             "email": "user1@example.com",
             "username": "user1",
-            "password": "password123",
+            "password": "password111",
             "full_name": "User One"
         },
         {
             "email": "user2@example.com",
             "username": "user2",
-            "password": "password123",
+            "password": "password222",
             "full_name": "User Two"
         },
         {
             "email": "user3@example.com",
             "username": "user3",
-            "password": "password123",
+            "password": "password333",
             "full_name": "User Three"
         },
         {
             "email": "user4@example.com",
             "username": "user4",
-            "password": "password123",
+            "password": "password444",
             "full_name": "User Four"
         },
         {
             "email": "user5@example.com",
             "username": "user5",
-            "password": "password123",
+            "password": "password555",
             "full_name": "User Five"
         }
     ]
