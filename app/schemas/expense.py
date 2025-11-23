@@ -81,12 +81,12 @@ class ExpenseResponse(ExpenseBase):
 
     id: UUID
     currency: str
-    created_by: UserResponse
+    created_by: UserResponse = Field(..., validation_alias="creator")
     participants: List[ParticipantResponse]
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class ExpenseListItem(BaseModel):
@@ -99,9 +99,9 @@ class ExpenseListItem(BaseModel):
     total_amount: Decimal
     your_share: Decimal
     share_type: str  # "credit" or "debit"
-    created_by: UserResponse
+    created_by: UserResponse = Field(..., validation_alias="creator")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class ExpenseListResponse(BaseModel):

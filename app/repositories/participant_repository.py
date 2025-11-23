@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.expense import Expense
 from app.models.expense_participant import ExpenseParticipant
 
 
@@ -117,9 +118,9 @@ class ParticipantRepository:
             select(ExpenseParticipant)
             .where(ExpenseParticipant.user_id == user_id)
             .options(
-                selectinload(ExpenseParticipant.expense)
-                .selectinload("participants")
-                .selectinload("user"),
+                selectinload(ExpenseParticipant.expense).selectinload(
+                    Expense.participants
+                ).selectinload(ExpenseParticipant.user),
                 selectinload(ExpenseParticipant.user),
             )
         )

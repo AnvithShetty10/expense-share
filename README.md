@@ -43,12 +43,18 @@ cp .env.example .env
 # Edit .env if needed (default values work for Docker setup)
 ```
 
-3. **Start all services**
+3. **Generate JWT secret (update in .env)**
+```python
+import secrets
+print(secrets.token_hex(64))
+```
+
+4. **Start all services**
 ```bash
 make build && make up
 ```
 
-4. **Help**
+5. **Help**
 ```bash
 make help
 ```

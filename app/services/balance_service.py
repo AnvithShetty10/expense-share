@@ -57,13 +57,9 @@ class BalanceService:
         user_id: UUID, db: AsyncSession
     ) -> Dict[UUID, Decimal]:
         """
-        Calculate balances for a user using simplified algorithm.
+        Calculate balances for a user with all other users they've shared expenses with.
 
-        Algorithm:
-        1. Get all expenses involving the user
-        2. For each expense, calculate contribution = amount_paid - amount_owed
-        3. Group by other users and sum contributions
-        4. Positive = others owe user, Negative = user owes others
+        Uses pairwise calculation to ensure consistency with get_balance_with_user.
 
         Args:
             user_id: User ID
@@ -71,66 +67,117 @@ class BalanceService:
 
         Returns:
             Dictionary mapping other user IDs to net balance amounts
+            (positive = other user owes this user, negative = this user owes other user)
         """
         # Get all participations for the user with expense details
         participations = (
             await ParticipantRepository.get_user_participants_with_expenses(db, user_id)
         )
 
-        # Dictionary to store net balance with each other user
-        balances: Dict[UUID, Decimal] = defaultdict(lambda: Decimal("0"))
-
-        # Process each expense
+        # Get unique set of other users involved in expenses
+        other_user_ids: set[UUID] = set()
         for participation in participations:
-            expense = participation.expense
-            current_user_paid = participation.amount_paid
-            current_user_owed = participation.amount_owed
+            for participant in participation.expense.participants:
+                if participant.user_id != user_id:
+                    other_user_ids.add(participant.user_id)
 
-            # Current user's contribution (positive = overpaid, negative = underpaid)
-            contribution = current_user_paid - current_user_owed
+        # Calculate pairwise balance with each user
+        balances: Dict[UUID, Decimal] = {}
+        for other_user_id in other_user_ids:
+            balance = await BalanceService._calculate_pairwise_balance(
+                user_id, other_user_id, db
+            )
+            if balance != 0:
+                balances[other_user_id] = balance
 
-            if contribution == 0:
-                # User paid exactly what they owe, no balance change
+        return balances
+
+    @staticmethod
+    async def _calculate_pairwise_balance(
+        user1_id: UUID, user2_id: UUID, db: AsyncSession
+    ) -> Decimal:
+        """
+        Calculate the direct balance between two specific users.
+        Positive means user2 owes user1, negative means user1 owes user2.
+
+        This method is symmetric: _calculate_pairwise_balance(A, B) = -_calculate_pairwise_balance(B, A)
+
+        Args:
+            user1_id: First user ID
+            user2_id: Second user ID
+            db: Database session
+
+        Returns:
+            Balance amount (positive = user2 owes user1)
+        """
+        # Get all expenses involving user1
+        user1_expenses = await ExpenseRepository.get_user_expenses(
+            db, user1_id, skip=0, limit=10000
+        )
+
+        total_balance = Decimal("0")
+
+        # Process each expense involving both users
+        for expense in user1_expenses:
+            participant_ids = [p.user_id for p in expense.participants]
+
+            # Skip if user2 not in this expense
+            if user2_id not in participant_ids:
                 continue
 
-            # Get all other participants in this expense
-            other_participants = [
-                p for p in expense.participants if p.user_id != user_id
-            ]
+            # Find both participants
+            user1_participant = next(
+                (p for p in expense.participants if p.user_id == user1_id), None
+            )
+            user2_participant = next(
+                (p for p in expense.participants if p.user_id == user2_id), None
+            )
 
-            if contribution > 0:
-                # User overpaid - others owe them proportionally
-                # Distribute the overpayment among others based on what they owe
-                total_others_owe = sum(p.amount_owed for p in other_participants)
+            if not user1_participant or not user2_participant:
+                continue
 
-                if total_others_owe > 0:
-                    for other_participant in other_participants:
-                        # Proportion of overpayment this participant owes
-                        proportion = other_participant.amount_owed / total_others_owe
-                        amount_owed_to_user = round_decimal(contribution * proportion)
-                        balances[other_participant.user_id] += amount_owed_to_user
+            # Calculate how much user1 paid for user2's share
+            # and how much user2 paid for user1's share
+            user1_paid = user1_participant.amount_paid
+            user1_owed = user1_participant.amount_owed
+            user2_paid = user2_participant.amount_paid
+            user2_owed = user2_participant.amount_owed
 
-            else:  # contribution < 0
-                # User underpaid - they owe to payers proportionally
-                user_owes = abs(contribution)
+            # User1's overpayment (or negative if underpaid)
+            user1_contribution = user1_paid - user1_owed
+            user2_contribution = user2_paid - user2_owed
 
-                # Find who paid in this expense (excluding current user)
-                payers = [p for p in other_participants if p.amount_paid > 0]
-                total_paid_by_others = sum(p.amount_paid for p in payers)
+            # Calculate total overpayments and underpayments in this expense
+            total_overpayment = Decimal("0")
+            total_underpayment = Decimal("0")
 
-                if total_paid_by_others > 0:
-                    for payer in payers:
-                        # Proportion user owes to this payer
-                        proportion = payer.amount_paid / total_paid_by_others
-                        amount_owed_by_user = round_decimal(user_owes * proportion)
-                        balances[payer.user_id] -= amount_owed_by_user
+            for participant in expense.participants:
+                contrib = participant.amount_paid - participant.amount_owed
+                if contrib > 0:
+                    total_overpayment += contrib
+                elif contrib < 0:
+                    total_underpayment += abs(contrib)
 
-        # Round all final balances
-        return {
-            uid: round_decimal(amount)
-            for uid, amount in balances.items()
-            if amount != 0
-        }
+            # If user1 overpaid and user2 underpaid (or vice versa)
+            if user1_contribution > 0 and user2_contribution < 0:
+                # user1 covered some of user2's share
+                user2_underpayment = abs(user2_contribution)
+                if total_underpayment > 0:
+                    # Portion of user1's overpayment that went to user2
+                    portion = user2_underpayment / total_underpayment
+                    amount = user1_contribution * portion
+                    total_balance += amount
+
+            elif user1_contribution < 0 and user2_contribution > 0:
+                # user2 covered some of user1's share
+                user1_underpayment = abs(user1_contribution)
+                if total_underpayment > 0:
+                    # Portion of user2's overpayment that went to user1
+                    portion = user1_underpayment / total_underpayment
+                    amount = user2_contribution * portion
+                    total_balance -= amount
+
+        return round_decimal(total_balance)
 
     @staticmethod
     async def get_user_balances(
@@ -261,25 +308,32 @@ class BalanceService:
         if not other_user:
             raise NotFoundError(f"User with ID {other_user_id} not found")
 
-        # Get all balances for current user
-        all_balances = await BalanceService.get_user_balances(current_user_id, db)
-
-        # Find balance with specific user
-        balance_with_user = next(
-            (b for b in all_balances if b.user.id == other_user_id), None
+        # Calculate direct balance between the two users
+        # This ensures symmetry: balance(A,B) = -balance(B,A)
+        balance_amount = await BalanceService._calculate_pairwise_balance(
+            current_user_id, other_user_id, db
         )
 
-        # If no balance found, create zero balance
-        if not balance_with_user:
-            balance_with_user = UserBalance(
-                user=UserResponse.model_validate(other_user),
-                amount=Decimal("0"),
-                type="owes_you",
-            )
+        # Determine balance type
+        if balance_amount > 0:
+            balance_type = "owes_you"
+            display_amount = balance_amount
+        elif balance_amount < 0:
+            balance_type = "you_owe"
+            display_amount = abs(balance_amount)
+        else:
+            balance_type = "owes_you"
+            display_amount = Decimal("0")
+
+        balance_with_user = UserBalance(
+            user=UserResponse.model_validate(other_user),
+            amount=display_amount,
+            type=balance_type,
+        )
 
         # Get shared expenses
         # Get all expenses for current user
-        current_user_expenses, _ = await ExpenseRepository.get_user_expenses(
+        current_user_expenses = await ExpenseRepository.get_user_expenses(
             db, current_user_id, skip=0, limit=1000  # Get all shared expenses
         )
 
