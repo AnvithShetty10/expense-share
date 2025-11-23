@@ -1,8 +1,10 @@
 """User schemas"""
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
+
+from app.schemas.expense import PaginationMeta
 
 
 class UserBase(BaseModel):
@@ -40,3 +42,9 @@ class UserInDB(UserBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserListResponse(BaseModel):
+    """Response schema for user list"""
+    items: List[UserResponse]
+    pagination: PaginationMeta

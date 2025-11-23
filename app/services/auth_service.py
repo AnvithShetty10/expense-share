@@ -51,6 +51,10 @@ class AuthService:
         created_user = await UserRepository.create(db, new_user)
         await db.commit()
 
+        # Invalidate user count cache
+        from app.services.user_service import UserService
+        await UserService.invalidate_user_count_cache()
+
         return created_user
 
     @staticmethod
