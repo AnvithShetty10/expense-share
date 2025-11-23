@@ -33,7 +33,7 @@ class PercentageSplitStrategy(BaseSplitStrategy):
 
         # Validate percentages sum to 100
         total_percentage = sum(
-            Decimal(str(p.get("percentage", 0))) for p in participant_data
+            Decimal(str(p.get("percentage", 0) or 0)) for p in participant_data
         )
 
         if abs(total_percentage - Decimal("100")) > Decimal("0.01"):

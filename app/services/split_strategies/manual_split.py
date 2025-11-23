@@ -34,7 +34,7 @@ class ManualSplitStrategy(BaseSplitStrategy):
         # Create splits from provided amounts
         splits = []
         for participant in participant_data:
-            amount_owed = Decimal(str(participant.get("amount_owed", 0)))
+            amount_owed = Decimal(str(participant.get("amount_owed", 0) or 0))
 
             if amount_owed < 0:
                 raise ValidationError(
