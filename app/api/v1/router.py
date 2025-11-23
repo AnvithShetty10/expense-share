@@ -1,7 +1,8 @@
 """Main v1 router aggregator"""
+
 from fastapi import APIRouter
 
-from app.api.v1 import auth, expenses, balances, users
+from app.api.v1 import auth, balances, expenses, users
 
 # Create v1 router
 api_router = APIRouter()

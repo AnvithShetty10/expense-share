@@ -1,8 +1,10 @@
 """Expense data access"""
-from typing import Optional, List
-from uuid import UUID
+
 from datetime import date
-from sqlalchemy import select, and_, or_
+from typing import List, Optional
+from uuid import UUID
+
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -46,7 +48,9 @@ class ExpenseRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def get_with_participants(db: AsyncSession, expense_id: UUID) -> Optional[Expense]:
+    async def get_with_participants(
+        db: AsyncSession, expense_id: UUID
+    ) -> Optional[Expense]:
         """
         Get expense with all participants eagerly loaded.
 
@@ -61,8 +65,10 @@ class ExpenseRepository:
             select(Expense)
             .where(Expense.id == expense_id)
             .options(
-                selectinload(Expense.participants).selectinload(ExpenseParticipant.user),
-                selectinload(Expense.creator)
+                selectinload(Expense.participants).selectinload(
+                    ExpenseParticipant.user
+                ),
+                selectinload(Expense.creator),
             )
         )
         return result.scalar_one_or_none()
@@ -75,7 +81,7 @@ class ExpenseRepository:
         limit: int = 20,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        group_name: Optional[str] = None
+        group_name: Optional[str] = None,
     ) -> List[Expense]:
         """
         Get all expenses involving a user with filters.
@@ -116,14 +122,16 @@ class ExpenseRepository:
         # Eager load participants and creator
         query = query.options(
             selectinload(Expense.participants).selectinload(ExpenseParticipant.user),
-            selectinload(Expense.creator)
+            selectinload(Expense.creator),
         )
 
         result = await db.execute(query)
         return list(result.scalars().all())
 
     @staticmethod
-    async def is_user_participant(db: AsyncSession, expense_id: UUID, user_id: UUID) -> bool:
+    async def is_user_participant(
+        db: AsyncSession, expense_id: UUID, user_id: UUID
+    ) -> bool:
         """
         Check if user is a participant in the expense.
 
@@ -139,7 +147,7 @@ class ExpenseRepository:
             select(ExpenseParticipant).where(
                 and_(
                     ExpenseParticipant.expense_id == expense_id,
-                    ExpenseParticipant.user_id == user_id
+                    ExpenseParticipant.user_id == user_id,
                 )
             )
         )
@@ -171,7 +179,7 @@ class ExpenseRepository:
         user_id: UUID,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        group_name: Optional[str] = None
+        group_name: Optional[str] = None,
     ) -> int:
         """
         Count total expenses for a user with filters.
@@ -192,7 +200,9 @@ class ExpenseRepository:
             ExpenseParticipant.user_id == user_id
         )
 
-        query = select(func.count(Expense.id)).where(Expense.id.in_(participant_subquery))
+        query = select(func.count(Expense.id)).where(
+            Expense.id.in_(participant_subquery)
+        )
 
         if start_date:
             query = query.where(Expense.expense_date >= start_date)

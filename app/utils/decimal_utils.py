@@ -1,5 +1,6 @@
 """Decimal arithmetic helpers"""
-from decimal import Decimal, ROUND_HALF_UP
+
+from decimal import ROUND_HALF_UP, Decimal
 
 
 def round_decimal(value: Decimal, decimal_places: int = 2) -> Decimal:
@@ -27,4 +28,4 @@ def sum_decimals(values: list[Decimal]) -> Decimal:
     Returns:
         Sum of all values
     """
-    return sum(values, Decimal('0'))
+    return sum(values, Decimal("0"))

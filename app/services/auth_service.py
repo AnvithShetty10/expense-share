@@ -1,13 +1,16 @@
 """Authentication logic"""
+
 from typing import Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
+from app.core.exceptions import AuthenticationError, ConflictError
+from app.core.security import (create_access_token, hash_password,
+                               verify_password)
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserCreate
-from app.core.security import hash_password, verify_password, create_access_token
-from app.core.exceptions import ConflictError, AuthenticationError
-from app.config import get_settings
 
 settings = get_settings()
 
@@ -44,7 +47,7 @@ class AuthService:
             username=user_data.username,
             hashed_password=hash_password(user_data.password),
             full_name=user_data.full_name,
-            is_active=True
+            is_active=True,
         )
 
         # Save to database
@@ -53,12 +56,15 @@ class AuthService:
 
         # Invalidate user count cache
         from app.services.user_service import UserService
+
         await UserService.invalidate_user_count_cache()
 
         return created_user
 
     @staticmethod
-    async def authenticate_user(identifier: str, password: str, db: AsyncSession) -> Optional[User]:
+    async def authenticate_user(
+        identifier: str, password: str, db: AsyncSession
+    ) -> Optional[User]:
         """
         Authenticate user with email/username and password.
 
@@ -103,7 +109,8 @@ class AuthService:
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": settings.access_token_expire_minutes * 60  # Convert to seconds
+            "expires_in": settings.access_token_expire_minutes
+            * 60,  # Convert to seconds
         }
 
     @staticmethod

@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: expense-share-postgres
+    environment:
+      POSTGRES_DB: expense_share
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - expense-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: expense-share-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - expense-network
+
+  # FastAPI Application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: expense-share-api
+    environment:
+      # Database
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/expense_share
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      # Application
+      APP_NAME: "Expense Share"
+      DEBUG: "false"
+      # Security
+      SECRET_KEY: "your-secret-key-change-in-production-min-32-chars-long"
+      ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      # CORS
+      ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - expense-network
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...' &&
+        sleep 5 &&
+        echo 'Running database migrations...' &&
+        alembic upgrade head &&
+        echo 'Seeding database...' &&
+        python scripts/seed_database.py &&
+        echo 'Starting application...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+# Networks
+networks:
+  expense-network:
+    driver: bridge
+
+# Volumes
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

@@ -1,11 +1,13 @@
 """FastAPI application entry point"""
-from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
+
 import json
 
-from app.config import get_settings
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
 from app.api.v1.router import api_router
+from app.config import get_settings
 from app.core.exceptions import AppException
 
 settings = get_settings()
@@ -24,7 +26,9 @@ if settings.allowed_origins:
     # Parse allowed_origins if it's a JSON string
     if isinstance(settings.allowed_origins, str):
         # If it's a string, split it
-        allowed_origins = [origin.strip() for origin in settings.allowed_origins.split(",")]
+        allowed_origins = [
+            origin.strip() for origin in settings.allowed_origins.split(",")
+        ]
     elif isinstance(settings.allowed_origins, list):
         # If it's already a list, use it directly (and maybe strip elements just in case)
         allowed_origins = [origin.strip() for origin in settings.allowed_origins]
@@ -51,9 +55,9 @@ async def app_exception_handler(request: Request, exc: AppException):
             "error": {
                 "message": exc.message,
                 "type": exc.error_type,
-                "path": str(request.url.path)
+                "path": str(request.url.path),
             }
-        }
+        },
     )
 
 
@@ -66,11 +70,8 @@ async def general_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
-            "error": {
-                "message": "Internal server error",
-                "type": "InternalServerError"
-            }
-        }
+            "error": {"message": "Internal server error", "type": "InternalServerError"}
+        },
     )
 
 
@@ -85,7 +86,7 @@ async def root():
     return {
         "message": f"Welcome to {settings.app_name}",
         "docs_url": "/docs",
-        "version": "1.0.0"
+        "version": "1.0.0",
     }
 
 

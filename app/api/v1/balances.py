@@ -1,26 +1,24 @@
 """Balance endpoints"""
+
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.schemas.balance import (
-    BalanceListResponse,
-    BalanceSummary,
-    UserBalanceDetail
-)
-from app.services.balance_service import BalanceService
 from app.api.deps import get_current_user
-from app.models.user import User
 from app.core.exceptions import NotFoundError
+from app.database import get_db
+from app.models.user import User
+from app.schemas.balance import (BalanceListResponse, BalanceSummary,
+                                 UserBalanceDetail)
+from app.services.balance_service import BalanceService
 
 router = APIRouter(prefix="/balances", tags=["Balances"])
 
 
 @router.get("", response_model=BalanceListResponse)
 async def get_balances(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
     """
     Get all balances for the current user.
@@ -36,9 +34,7 @@ async def get_balances(
         List of balances with user details and amounts
     """
     balances = await BalanceService.get_user_balances(
-        current_user.id,
-        db,
-        use_cache=True
+        current_user.id, db, use_cache=True
     )
 
     return BalanceListResponse(balances=balances)
@@ -46,8 +42,7 @@ async def get_balances(
 
 @router.get("/summary", response_model=BalanceSummary)
 async def get_balance_summary(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
     """
     Get balance summary for the current user.
@@ -66,9 +61,7 @@ async def get_balance_summary(
         Balance summary with aggregated statistics
     """
     summary = await BalanceService.get_balance_summary(
-        current_user.id,
-        db,
-        use_cache=True
+        current_user.id, db, use_cache=True
     )
 
     return summary
@@ -78,7 +71,7 @@ async def get_balance_summary(
 async def get_balance_with_user(
     user_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get balance between current user and a specific other user.
@@ -100,13 +93,8 @@ async def get_balance_with_user(
     """
     try:
         balance_detail = await BalanceService.get_balance_with_user(
-            current_user.id,
-            user_id,
-            db
+            current_user.id, user_id, db
         )
         return balance_detail
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=e.message
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)

@@ -1,19 +1,21 @@
 """Balance calculation logic"""
-import json
-from typing import List, Dict, Optional
-from uuid import UUID
-from decimal import Decimal
-from sqlalchemy.ext.asyncio import AsyncSession
-from collections import defaultdict
 
+import json
+from collections import defaultdict
+from decimal import Decimal
+from typing import Dict, List, Optional
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import NotFoundError
+from app.repositories.expense_repository import ExpenseRepository
 from app.repositories.participant_repository import ParticipantRepository
 from app.repositories.user_repository import UserRepository
-from app.repositories.expense_repository import ExpenseRepository
-from app.schemas.balance import UserBalance, BalanceSummary, UserBalanceDetail
-from app.schemas.user import UserResponse
+from app.schemas.balance import BalanceSummary, UserBalance, UserBalanceDetail
 from app.schemas.expense import ExpenseListItem
+from app.schemas.user import UserResponse
 from app.services.cache_service import CacheService
-from app.core.exceptions import NotFoundError
 from app.utils.decimal_utils import round_decimal
 
 
@@ -31,7 +33,9 @@ class BalanceService:
         Returns:
             JSON string
         """
-        serializable = {str(user_id): str(amount) for user_id, amount in balances_dict.items()}
+        serializable = {
+            str(user_id): str(amount) for user_id, amount in balances_dict.items()
+        }
         return json.dumps(serializable)
 
     @staticmethod
@@ -49,7 +53,9 @@ class BalanceService:
         return {UUID(user_id): Decimal(amount) for user_id, amount in data.items()}
 
     @staticmethod
-    async def _calculate_user_balances(user_id: UUID, db: AsyncSession) -> Dict[UUID, Decimal]:
+    async def _calculate_user_balances(
+        user_id: UUID, db: AsyncSession
+    ) -> Dict[UUID, Decimal]:
         """
         Calculate balances for a user using simplified algorithm.
 
@@ -67,10 +73,12 @@ class BalanceService:
             Dictionary mapping other user IDs to net balance amounts
         """
         # Get all participations for the user with expense details
-        participations = await ParticipantRepository.get_user_participants_with_expenses(db, user_id)
+        participations = (
+            await ParticipantRepository.get_user_participants_with_expenses(db, user_id)
+        )
 
         # Dictionary to store net balance with each other user
-        balances: Dict[UUID, Decimal] = defaultdict(lambda: Decimal('0'))
+        balances: Dict[UUID, Decimal] = defaultdict(lambda: Decimal("0"))
 
         # Process each expense
         for participation in participations:
@@ -86,7 +94,9 @@ class BalanceService:
                 continue
 
             # Get all other participants in this expense
-            other_participants = [p for p in expense.participants if p.user_id != user_id]
+            other_participants = [
+                p for p in expense.participants if p.user_id != user_id
+            ]
 
             if contribution > 0:
                 # User overpaid - others owe them proportionally
@@ -116,13 +126,15 @@ class BalanceService:
                         balances[payer.user_id] -= amount_owed_by_user
 
         # Round all final balances
-        return {uid: round_decimal(amount) for uid, amount in balances.items() if amount != 0}
+        return {
+            uid: round_decimal(amount)
+            for uid, amount in balances.items()
+            if amount != 0
+        }
 
     @staticmethod
     async def get_user_balances(
-        user_id: UUID,
-        db: AsyncSession,
-        use_cache: bool = True
+        user_id: UUID, db: AsyncSession, use_cache: bool = True
     ) -> List[UserBalance]:
         """
         Get all balances for a user.
@@ -146,7 +158,9 @@ class BalanceService:
                 balances_dict = BalanceService._deserialize_balances(cached_data)
             else:
                 # Calculate and cache
-                balances_dict = await BalanceService._calculate_user_balances(user_id, db)
+                balances_dict = await BalanceService._calculate_user_balances(
+                    user_id, db
+                )
                 serialized = BalanceService._serialize_balances(balances_dict)
                 await CacheService.set(cache_key, serialized, ttl=3600)
         else:
@@ -173,7 +187,7 @@ class BalanceService:
             user_balance = UserBalance(
                 user=UserResponse.model_validate(other_user),
                 amount=balance_amount,
-                type=balance_type
+                type=balance_type,
             )
             user_balances.append(user_balance)
 
@@ -184,9 +198,7 @@ class BalanceService:
 
     @staticmethod
     async def get_balance_summary(
-        user_id: UUID,
-        db: AsyncSession,
-        use_cache: bool = True
+        user_id: UUID, db: AsyncSession, use_cache: bool = True
     ) -> BalanceSummary:
         """
         Get balance summary for a user.
@@ -203,8 +215,8 @@ class BalanceService:
         user_balances = await BalanceService.get_user_balances(user_id, db, use_cache)
 
         # Calculate summary statistics
-        total_owed_to_you = Decimal('0')
-        total_you_owe = Decimal('0')
+        total_owed_to_you = Decimal("0")
+        total_you_owe = Decimal("0")
         num_people_owe_you = 0
         num_people_you_owe = 0
 
@@ -223,14 +235,12 @@ class BalanceService:
             total_you_owe=round_decimal(total_you_owe),
             total_owed_to_you=round_decimal(total_owed_to_you),
             num_people_you_owe=num_people_you_owe,
-            num_people_owe_you=num_people_owe_you
+            num_people_owe_you=num_people_owe_you,
         )
 
     @staticmethod
     async def get_balance_with_user(
-        current_user_id: UUID,
-        other_user_id: UUID,
-        db: AsyncSession
+        current_user_id: UUID, other_user_id: UUID, db: AsyncSession
     ) -> UserBalanceDetail:
         """
         Get balance between current user and another specific user.
@@ -256,25 +266,21 @@ class BalanceService:
 
         # Find balance with specific user
         balance_with_user = next(
-            (b for b in all_balances if b.user.id == other_user_id),
-            None
+            (b for b in all_balances if b.user.id == other_user_id), None
         )
 
         # If no balance found, create zero balance
         if not balance_with_user:
             balance_with_user = UserBalance(
                 user=UserResponse.model_validate(other_user),
-                amount=Decimal('0'),
-                type="owes_you"
+                amount=Decimal("0"),
+                type="owes_you",
             )
 
         # Get shared expenses
         # Get all expenses for current user
         current_user_expenses, _ = await ExpenseRepository.get_user_expenses(
-            db,
-            current_user_id,
-            skip=0,
-            limit=1000  # Get all shared expenses
+            db, current_user_id, skip=0, limit=1000  # Get all shared expenses
         )
 
         # Filter for expenses involving both users
@@ -286,11 +292,13 @@ class BalanceService:
                 # Find current user's participation
                 user_participant = next(
                     (p for p in expense.participants if p.user_id == current_user_id),
-                    None
+                    None,
                 )
 
                 if user_participant:
-                    net_amount = user_participant.amount_owed - user_participant.amount_paid
+                    net_amount = (
+                        user_participant.amount_owed - user_participant.amount_paid
+                    )
                     share_type = "debit" if net_amount > 0 else "credit"
                     your_share = abs(net_amount)
 
@@ -302,7 +310,7 @@ class BalanceService:
                         total_amount=expense.total_amount,
                         your_share=your_share,
                         share_type=share_type,
-                        created_by=expense.creator
+                        created_by=expense.creator,
                     )
                     shared_expenses.append(expense_item)
 
@@ -313,7 +321,7 @@ class BalanceService:
             user=balance_with_user.user,
             amount=balance_with_user.amount,
             type=balance_with_user.type,
-            shared_expenses=shared_expenses
+            shared_expenses=shared_expenses,
         )
 
     @staticmethod

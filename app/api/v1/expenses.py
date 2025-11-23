@@ -1,30 +1,24 @@
 """Expense endpoints"""
+
 import json
-from typing import Optional
 from datetime import date
+from decimal import Decimal
+from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Header
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.schemas.expense import (
-    ExpenseCreate,
-    ExpenseUpdate,
-    ExpenseResponse,
-    ExpenseListItem,
-    ExpenseListResponse,
-    PaginationMeta
-)
-from app.services.expense_service import ExpenseService
-from app.services.cache_service import CacheService
 from app.api.deps import get_current_user
+from app.core.exceptions import (AuthorizationError, NotFoundError,
+                                 ValidationError)
+from app.database import get_db
 from app.models.user import User
-from app.core.exceptions import (
-    ValidationError,
-    NotFoundError,
-    AuthorizationError
-)
-from decimal import Decimal
+from app.schemas.expense import (ExpenseCreate, ExpenseListItem,
+                                 ExpenseListResponse, ExpenseResponse,
+                                 ExpenseUpdate, PaginationMeta)
+from app.services.cache_service import CacheService
+from app.services.expense_service import ExpenseService
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
@@ -34,7 +28,7 @@ async def create_expense(
     expense_data: ExpenseCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """
     Create a new expense.
@@ -68,35 +62,23 @@ async def create_expense(
 
     # Create new expense
     try:
-        expense = await ExpenseService.create_expense(
-            expense_data,
-            current_user.id,
-            db
-        )
+        expense = await ExpenseService.create_expense(expense_data, current_user.id, db)
         response = ExpenseResponse.model_validate(expense)
 
         # Cache response if idempotency key provided
         if idempotency_key:
             cache_key = f"idempotency:expense:{idempotency_key}:{current_user.id}"
             # Convert response to dict for JSON serialization
-            response_dict = response.model_dump(mode='json')
+            response_dict = response.model_dump(mode="json")
             await CacheService.set(
-                cache_key,
-                json.dumps(response_dict, default=str),
-                ttl=86400  # 24 hours
+                cache_key, json.dumps(response_dict, default=str), ttl=86400  # 24 hours
             )
 
         return response
     except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=e.message
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=e.message
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
 
 
 @router.get("", response_model=ExpenseListResponse)
@@ -107,7 +89,7 @@ async def list_expenses(
     end_date: Optional[date] = Query(None, description="Filter by end date"),
     group_name: Optional[str] = Query(None, description="Filter by group name"),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get list of expenses for the current user with pagination and filters.
@@ -131,7 +113,7 @@ async def list_expenses(
         page_size=page_size,
         start_date=start_date,
         end_date=end_date,
-        group_name=group_name
+        group_name=group_name,
     )
 
     # Calculate total pages
@@ -142,8 +124,7 @@ async def list_expenses(
     for expense in expenses:
         # Find current user's participation
         user_participant = next(
-            (p for p in expense.participants if p.user_id == current_user.id),
-            None
+            (p for p in expense.participants if p.user_id == current_user.id), None
         )
 
         if user_participant:
@@ -162,28 +143,22 @@ async def list_expenses(
                 total_amount=expense.total_amount,
                 your_share=your_share,
                 share_type=share_type,
-                created_by=expense.creator
+                created_by=expense.creator,
             )
             expense_items.append(expense_item)
 
     pagination = PaginationMeta(
-        page=page,
-        page_size=page_size,
-        total_items=total_count,
-        total_pages=total_pages
+        page=page, page_size=page_size, total_items=total_count, total_pages=total_pages
     )
 
-    return ExpenseListResponse(
-        items=expense_items,
-        pagination=pagination
-    )
+    return ExpenseListResponse(items=expense_items, pagination=pagination)
 
 
 @router.get("/{expense_id}", response_model=ExpenseResponse)
 async def get_expense(
     expense_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get detailed information about a specific expense.
@@ -204,21 +179,13 @@ async def get_expense(
     """
     try:
         expense = await ExpenseService.get_expense_details(
-            expense_id,
-            current_user.id,
-            db
+            expense_id, current_user.id, db
         )
         return ExpenseResponse.model_validate(expense)
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=e.message
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
     except AuthorizationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=e.message
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=e.message)
 
 
 @router.put("/{expense_id}", response_model=ExpenseResponse)
@@ -226,7 +193,7 @@ async def update_expense(
     expense_id: UUID,
     expense_data: ExpenseUpdate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Update an existing expense.
@@ -249,34 +216,22 @@ async def update_expense(
     """
     try:
         expense = await ExpenseService.update_expense(
-            expense_id,
-            expense_data,
-            current_user.id,
-            db
+            expense_id, expense_data, current_user.id, db
         )
         return ExpenseResponse.model_validate(expense)
     except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=e.message
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=e.message
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
     except AuthorizationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=e.message
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=e.message)
 
 
 @router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_expense(
     expense_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Delete an expense.
@@ -297,19 +252,9 @@ async def delete_expense(
         403: If user is not the creator of the expense
     """
     try:
-        await ExpenseService.delete_expense(
-            expense_id,
-            current_user.id,
-            db
-        )
+        await ExpenseService.delete_expense(expense_id, current_user.id, db)
         return None
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=e.message
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
     except AuthorizationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=e.message
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=e.message)

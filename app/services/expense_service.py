@@ -1,10 +1,14 @@
 """Expense business logic"""
-from typing import Optional, List
-from uuid import UUID
+
 from datetime import date
 from decimal import Decimal
+from typing import List, Optional
+from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import (AuthorizationError, NotFoundError,
+                                 ValidationError)
 from app.models.expense import Expense
 from app.models.expense_participant import ExpenseParticipant
 from app.repositories.expense_repository import ExpenseRepository
@@ -12,7 +16,6 @@ from app.repositories.participant_repository import ParticipantRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate
 from app.services.split_strategies import get_split_strategy
-from app.core.exceptions import ValidationError, NotFoundError, AuthorizationError
 from app.utils.decimal_utils import sum_decimals
 
 
@@ -20,7 +23,9 @@ class ExpenseService:
     """Service for expense operations"""
 
     @staticmethod
-    async def validate_participants_exist(db: AsyncSession, participant_data: list) -> None:
+    async def validate_participants_exist(
+        db: AsyncSession, participant_data: list
+    ) -> None:
         """
         Validate that all participant user IDs exist.
 
@@ -40,7 +45,7 @@ class ExpenseService:
     async def validate_amounts(
         total_amount: Decimal,
         participant_data: list,
-        calculated_splits: Optional[list] = None
+        calculated_splits: Optional[list] = None,
     ) -> None:
         """
         Validate that amounts are correct.
@@ -54,25 +59,27 @@ class ExpenseService:
             ValidationError: If amounts don't match
         """
         # Validate total paid equals total amount
-        total_paid = sum_decimals([Decimal(str(p.amount_paid)) for p in participant_data])
-        if abs(total_paid - total_amount) > Decimal('0.01'):
+        total_paid = sum_decimals(
+            [Decimal(str(p.amount_paid)) for p in participant_data]
+        )
+        if abs(total_paid - total_amount) > Decimal("0.01"):
             raise ValidationError(
                 f"Sum of amounts paid ({total_paid}) must equal total amount ({total_amount})"
             )
 
         # If we have calculated splits, validate total owed
         if calculated_splits:
-            total_owed = sum_decimals([split.amount_owed for split in calculated_splits])
-            if abs(total_owed - total_amount) > Decimal('0.01'):
+            total_owed = sum_decimals(
+                [split.amount_owed for split in calculated_splits]
+            )
+            if abs(total_owed - total_amount) > Decimal("0.01"):
                 raise ValidationError(
                     f"Sum of amounts owed ({total_owed}) must equal total amount ({total_amount})"
                 )
 
     @staticmethod
     async def create_expense(
-        expense_data: ExpenseCreate,
-        user_id: UUID,
-        db: AsyncSession
+        expense_data: ExpenseCreate, user_id: UUID, db: AsyncSession
     ) -> Expense:
         """
         Create a new expense.
@@ -97,15 +104,12 @@ class ExpenseService:
         # Calculate splits based on strategy
         participant_dicts = [p.model_dump() for p in expense_data.participants]
         calculated_splits = strategy.calculate_splits(
-            expense_data.total_amount,
-            participant_dicts
+            expense_data.total_amount, participant_dicts
         )
 
         # Validate amounts
         await ExpenseService.validate_amounts(
-            expense_data.total_amount,
-            expense_data.participants,
-            calculated_splits
+            expense_data.total_amount, expense_data.participants, calculated_splits
         )
 
         # Begin transaction
@@ -117,20 +121,22 @@ class ExpenseService:
                 expense_date=expense_data.expense_date,
                 created_by_user_id=user_id,
                 group_name=expense_data.group_name,
-                split_type=expense_data.split_type
+                split_type=expense_data.split_type,
             )
 
             created_expense = await ExpenseRepository.create(db, expense)
 
             # Create participants
             participants = []
-            for participant_input, calculated_split in zip(expense_data.participants, calculated_splits):
+            for participant_input, calculated_split in zip(
+                expense_data.participants, calculated_splits
+            ):
                 participant = ExpenseParticipant(
                     expense_id=created_expense.id,
                     user_id=participant_input.user_id,
                     amount_paid=participant_input.amount_paid,
                     amount_owed=calculated_split.amount_owed,
-                    percentage=participant_input.percentage
+                    percentage=participant_input.percentage,
                 )
                 participants.append(participant)
 
@@ -140,6 +146,7 @@ class ExpenseService:
 
         # Invalidate balance cache for all participants
         from app.services.balance_service import BalanceService
+
         participant_user_ids = [p.user_id for p in participants]
         await BalanceService.invalidate_balances_for_users(participant_user_ids)
 
@@ -154,7 +161,7 @@ class ExpenseService:
         page_size: int = 20,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        group_name: Optional[str] = None
+        group_name: Optional[str] = None,
     ) -> tuple[List[Expense], int]:
         """
         Get expenses for a user with pagination.
@@ -180,24 +187,18 @@ class ExpenseService:
             limit=page_size,
             start_date=start_date,
             end_date=end_date,
-            group_name=group_name
+            group_name=group_name,
         )
 
         total_count = await ExpenseRepository.count_user_expenses(
-            db,
-            user_id,
-            start_date=start_date,
-            end_date=end_date,
-            group_name=group_name
+            db, user_id, start_date=start_date, end_date=end_date, group_name=group_name
         )
 
         return expenses, total_count
 
     @staticmethod
     async def get_expense_details(
-        expense_id: UUID,
-        user_id: UUID,
-        db: AsyncSession
+        expense_id: UUID, user_id: UUID, db: AsyncSession
     ) -> Expense:
         """
         Get expense details with authorization check.
@@ -220,7 +221,9 @@ class ExpenseService:
             raise NotFoundError("Expense not found")
 
         # Check if user is a participant
-        is_participant = await ExpenseRepository.is_user_participant(db, expense_id, user_id)
+        is_participant = await ExpenseRepository.is_user_participant(
+            db, expense_id, user_id
+        )
         if not is_participant:
             raise AuthorizationError("You are not authorized to view this expense")
 
@@ -228,10 +231,7 @@ class ExpenseService:
 
     @staticmethod
     async def update_expense(
-        expense_id: UUID,
-        expense_data: ExpenseUpdate,
-        user_id: UUID,
-        db: AsyncSession
+        expense_id: UUID, expense_data: ExpenseUpdate, user_id: UUID, db: AsyncSession
     ) -> Expense:
         """
         Update an expense (creator only).
@@ -270,15 +270,12 @@ class ExpenseService:
         strategy = get_split_strategy(expense_data.split_type)
         participant_dicts = [p.model_dump() for p in expense_data.participants]
         calculated_splits = strategy.calculate_splits(
-            expense_data.total_amount,
-            participant_dicts
+            expense_data.total_amount, participant_dicts
         )
 
         # Validate amounts
         await ExpenseService.validate_amounts(
-            expense_data.total_amount,
-            expense_data.participants,
-            calculated_splits
+            expense_data.total_amount, expense_data.participants, calculated_splits
         )
 
         # Begin transaction
@@ -295,13 +292,15 @@ class ExpenseService:
 
             # Create new participants
             participants = []
-            for participant_input, calculated_split in zip(expense_data.participants, calculated_splits):
+            for participant_input, calculated_split in zip(
+                expense_data.participants, calculated_splits
+            ):
                 participant = ExpenseParticipant(
                     expense_id=expense_id,
                     user_id=participant_input.user_id,
                     amount_paid=participant_input.amount_paid,
                     amount_owed=calculated_split.amount_owed,
-                    percentage=participant_input.percentage
+                    percentage=participant_input.percentage,
                 )
                 participants.append(participant)
 
@@ -311,19 +310,18 @@ class ExpenseService:
 
         # Invalidate balance cache for all old and new participants
         from app.services.balance_service import BalanceService
+
         new_participant_user_ids = [p.user_id for p in participants]
-        all_affected_user_ids = list(set(old_participant_user_ids + new_participant_user_ids))
+        all_affected_user_ids = list(
+            set(old_participant_user_ids + new_participant_user_ids)
+        )
         await BalanceService.invalidate_balances_for_users(all_affected_user_ids)
 
         # Return updated expense with participants
         return await ExpenseRepository.get_with_participants(db, expense_id)
 
     @staticmethod
-    async def delete_expense(
-        expense_id: UUID,
-        user_id: UUID,
-        db: AsyncSession
-    ) -> bool:
+    async def delete_expense(expense_id: UUID, user_id: UUID, db: AsyncSession) -> bool:
         """
         Delete an expense (creator only).
 
@@ -358,6 +356,7 @@ class ExpenseService:
 
         # Invalidate balance cache for all participants
         from app.services.balance_service import BalanceService
+
         await BalanceService.invalidate_balances_for_users(participant_user_ids)
 
         return True

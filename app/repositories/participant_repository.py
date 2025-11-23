@@ -1,7 +1,10 @@
 """Participant data access"""
+
 from typing import List
 from uuid import UUID
-from sqlalchemy import select, delete as sql_delete
+
+from sqlalchemy import delete as sql_delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -12,7 +15,9 @@ class ParticipantRepository:
     """Repository for ExpenseParticipant database operations"""
 
     @staticmethod
-    async def create(db: AsyncSession, participant: ExpenseParticipant) -> ExpenseParticipant:
+    async def create(
+        db: AsyncSession, participant: ExpenseParticipant
+    ) -> ExpenseParticipant:
         """
         Create a new participant.
 
@@ -29,7 +34,9 @@ class ParticipantRepository:
         return participant
 
     @staticmethod
-    async def create_batch(db: AsyncSession, participants: List[ExpenseParticipant]) -> List[ExpenseParticipant]:
+    async def create_batch(
+        db: AsyncSession, participants: List[ExpenseParticipant]
+    ) -> List[ExpenseParticipant]:
         """
         Create multiple participants in a batch.
 
@@ -50,7 +57,9 @@ class ParticipantRepository:
         return participants
 
     @staticmethod
-    async def get_by_expense(db: AsyncSession, expense_id: UUID) -> List[ExpenseParticipant]:
+    async def get_by_expense(
+        db: AsyncSession, expense_id: UUID
+    ) -> List[ExpenseParticipant]:
         """
         Get all participants for an expense.
 
@@ -85,13 +94,15 @@ class ParticipantRepository:
             .where(ExpenseParticipant.user_id == user_id)
             .options(
                 selectinload(ExpenseParticipant.expense),
-                selectinload(ExpenseParticipant.user)
+                selectinload(ExpenseParticipant.user),
             )
         )
         return list(result.scalars().all())
 
     @staticmethod
-    async def get_user_participants_with_expenses(db: AsyncSession, user_id: UUID) -> List[ExpenseParticipant]:
+    async def get_user_participants_with_expenses(
+        db: AsyncSession, user_id: UUID
+    ) -> List[ExpenseParticipant]:
         """
         Get all participations for a user with expense details loaded.
 
@@ -106,8 +117,10 @@ class ParticipantRepository:
             select(ExpenseParticipant)
             .where(ExpenseParticipant.user_id == user_id)
             .options(
-                selectinload(ExpenseParticipant.expense).selectinload('participants').selectinload('user'),
-                selectinload(ExpenseParticipant.user)
+                selectinload(ExpenseParticipant.expense)
+                .selectinload("participants")
+                .selectinload("user"),
+                selectinload(ExpenseParticipant.user),
             )
         )
         return list(result.scalars().all())
@@ -125,7 +138,9 @@ class ParticipantRepository:
             Number of participants deleted
         """
         result = await db.execute(
-            sql_delete(ExpenseParticipant).where(ExpenseParticipant.expense_id == expense_id)
+            sql_delete(ExpenseParticipant).where(
+                ExpenseParticipant.expense_id == expense_id
+            )
         )
         await db.flush()
         return result.rowcount

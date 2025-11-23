@@ -1,7 +1,9 @@
 """User data access"""
+
 from typing import Optional
 from uuid import UUID
-from sqlalchemy import select, or_
+
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -73,7 +75,9 @@ class UserRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def get_by_email_or_username(db: AsyncSession, identifier: str) -> Optional[User]:
+    async def get_by_email_or_username(
+        db: AsyncSession, identifier: str
+    ) -> Optional[User]:
         """
         Get user by email or username.
 
@@ -85,7 +89,9 @@ class UserRepository:
             User if found, None otherwise
         """
         result = await db.execute(
-            select(User).where(or_(User.email == identifier, User.username == identifier))
+            select(User).where(
+                or_(User.email == identifier, User.username == identifier)
+            )
         )
         return result.scalar_one_or_none()
 
@@ -120,7 +126,9 @@ class UserRepository:
         return user is not None
 
     @staticmethod
-    async def get_all(db: AsyncSession, skip: int = 0, limit: int = 20, search: Optional[str] = None) -> list[User]:
+    async def get_all(
+        db: AsyncSession, skip: int = 0, limit: int = 20, search: Optional[str] = None
+    ) -> list[User]:
         """
         Get all users with pagination and optional search.
 
@@ -141,7 +149,7 @@ class UserRepository:
                 or_(
                     User.full_name.ilike(search_pattern),
                     User.email.ilike(search_pattern),
-                    User.username.ilike(search_pattern)
+                    User.username.ilike(search_pattern),
                 )
             )
 
@@ -171,7 +179,7 @@ class UserRepository:
                 or_(
                     User.full_name.ilike(search_pattern),
                     User.email.ilike(search_pattern),
-                    User.username.ilike(search_pattern)
+                    User.username.ilike(search_pattern),
                 )
             )
 

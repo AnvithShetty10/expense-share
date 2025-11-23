@@ -1,6 +1,8 @@
 """Configuration management"""
+
 from functools import lru_cache
 from typing import List
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -29,9 +31,7 @@ class Settings(BaseSettings):
     allowed_origins: List[str] = []
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        case_sensitive=False,
-        extra="ignore"
+        env_file=".env", case_sensitive=False, extra="ignore"
     )
 
     @field_validator("secret_key")

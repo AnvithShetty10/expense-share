@@ -1,17 +1,21 @@
 """Expense model"""
+
+import enum
 import uuid
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Numeric, String, CheckConstraint
+
+from sqlalchemy import (CheckConstraint, Column, Date, DateTime, Enum,
+                        ForeignKey, Numeric, String)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-import enum
 
 from app.database import Base
 
 
 class SplitType(str, enum.Enum):
     """Enum for split types"""
+
     EQUAL = "EQUAL"
     PERCENTAGE = "PERCENTAGE"
     MANUAL = "MANUAL"
@@ -27,20 +31,28 @@ class Expense(Base):
     total_amount = Column(Numeric(12, 2), nullable=False)
     currency = Column(String(3), default="INR", nullable=False)
     expense_date = Column(Date, nullable=False)
-    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
     group_name = Column(String(255), nullable=True)
     split_type = Column(Enum(SplitType), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
 
     # Constraints
     __table_args__ = (
-        CheckConstraint('total_amount > 0', name='check_total_amount_positive'),
+        CheckConstraint("total_amount > 0", name="check_total_amount_positive"),
     )
 
     # Relationships
-    creator = relationship("User", back_populates="expenses_created", foreign_keys=[created_by_user_id])
-    participants = relationship("ExpenseParticipant", back_populates="expense", cascade="all, delete-orphan")
+    creator = relationship(
+        "User", back_populates="expenses_created", foreign_keys=[created_by_user_id]
+    )
+    participants = relationship(
+        "ExpenseParticipant", back_populates="expense", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Expense(id={self.id}, description={self.description}, total_amount={self.total_amount})>"

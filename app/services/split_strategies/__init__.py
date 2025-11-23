@@ -1,10 +1,13 @@
 """Split calculation strategies"""
-from app.services.split_strategies.base import BaseSplitStrategy, ParticipantSplit
-from app.services.split_strategies.equal_split import EqualSplitStrategy
-from app.services.split_strategies.percentage_split import PercentageSplitStrategy
-from app.services.split_strategies.manual_split import ManualSplitStrategy
-from app.models.expense import SplitType
+
 from app.core.exceptions import ValidationError
+from app.models.expense import SplitType
+from app.services.split_strategies.base import (BaseSplitStrategy,
+                                                ParticipantSplit)
+from app.services.split_strategies.equal_split import EqualSplitStrategy
+from app.services.split_strategies.manual_split import ManualSplitStrategy
+from app.services.split_strategies.percentage_split import \
+    PercentageSplitStrategy
 
 
 def get_split_strategy(split_type: SplitType) -> BaseSplitStrategy:
@@ -39,5 +42,5 @@ __all__ = [
     "EqualSplitStrategy",
     "PercentageSplitStrategy",
     "ManualSplitStrategy",
-    "get_split_strategy"
+    "get_split_strategy",
 ]

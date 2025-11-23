@@ -1,6 +1,9 @@
 """Generic Redis cache operations"""
-from typing import Optional, List
+
+from typing import List, Optional
+
 import redis.asyncio as redis
+
 from app.config import get_settings
 
 settings = get_settings()
@@ -21,9 +24,7 @@ class CacheService:
         """
         if cls._redis_client is None:
             cls._redis_client = redis.from_url(
-                settings.redis_url,
-                encoding="utf-8",
-                decode_responses=True
+                settings.redis_url, encoding="utf-8", decode_responses=True
             )
         return cls._redis_client
 
